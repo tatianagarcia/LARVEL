@@ -74,5 +74,11 @@ to endorse or promote products derived from this Software.
 The following pieces of software have additional or alternate copyrights,
 licenses, and/or restrictions:
 
-Program/Function     Developer         Directory
-----------------     ---------         ---------
+Program/Function              Developer             Directory                      Reference
+----------------              ---------             ---------                      ---------
+HUNGARIANLINKER               Jean-Yves Tinevez     LARVEL\HUNGARIANLINKER 
+MUNKRES 2.3                   Yi Cao                LARVEL\MUNKRES                 Munkres' Assignment Algorithm, Modified for Rectangular Matrices. Cranfield University on 11th September 2011
+NEARESTNEIGHBORLINKER v1.1    Jean-Yves Tinevez     LARVEL\NEARESTNEIGHBORLINKER
+SIMPLETRACKER  v1.3           Jean-Yves Tinevez     LARVEL\SIMPLETRACKER
+parseArgs                     Aslak Grinsted        LARVEL\parseArgs 
+SUBAXIS                       Aslak Grinsted        LARVEL\SUBAXIS
