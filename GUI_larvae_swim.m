@@ -94,15 +94,22 @@ else
         I=imread(fullfile(filepath,filename{1}));
         OrigImages=zeros([size(I) nFrames],class(I));%prealocate memory
         %OrigImages(:,:,1)=rgb2gray(I);
-        OrigImages(:,:,:,1)=(I);
-        % Create image sequence array
-        for p=2:nFrames
-            %OrigImages(:,:,p)=rgb2gray(imread(fullfile(filepath,filename{p})));
-            OrigImages(:,:,:,p)=(imread(fullfile(filepath,filename{p})));
+        if length(size(I)) == 3 %In the case of color picture
+            OrigImages(:,:,:,1)=(I);
+            % Create image sequence array
+            for p=2:nFrames
+                OrigImages(:,:,:,p)=(imread(fullfile(filepath,filename{p})));
+            end
+            close(m)
+        else
+            OrigImages(:,:,1)=(I); % In case of binary image
+            % Create image sequence array
+            for p=2:nFrames
+                OrigImages(:,:,p)=(imread(fullfile(filepath,filename{p})));
+            end
+            close(m)            
         end
-        %save('OrigImages')
-        close(m)
-        
+        %
         % Display picture
         set(handles.picture,'Visible','on');
         handles.nFrames=length(filename);
@@ -182,16 +189,22 @@ close(h)
 %% =======================================================================
 %crop all frames; display cropped footage
 for i=1:handles.nFrames
-    Crop_OrigImages(:,:,:,i)=imcrop(handles.OrigImages(:,:,:,i),roi);
-    Images(:,:,i)=rgb2gray(Crop_OrigImages(:,:,:,i));
+    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
+        Crop_OrigImages(:,:,:,i)=imcrop(handles.OrigImages(:,:,:,i),roi);
+    else
+        Crop_OrigImages(:,:,i)=imcrop(handles.OrigImages(:,:,i),roi);
+    end
 end
 clear done hLine pt x1 x2 xx y1 y2 yy %subIm
+%:, :,
+%Images(:,:,i)=rgb2gray(Crop_OrigImages(:,:,i));
+%:,
 %We Will use this at the end
 %CropImg=Images(:,:,1)+Images(:,:,2);
 %% Storage and preallocate data and structures
 handles.Crop_OrigImages=Crop_OrigImages;
-handles.Images=Images;
-handles.bw2=zeros(size(Images));
+%handles.Images=Images;
+handles.bw2=zeros(size(Crop_OrigImages));
 handles.subIm=subIm;
 centroid.x=[];centroid.y=[];centroid = repmat(centroid,handles.nFrames,1);
 handles.centroid=centroid;
@@ -211,17 +224,25 @@ end
 
 function Button_particle_segmentation_Callback(hObject, eventdata, handles)
 Message= msgbox('Please wait','Processing image','help');
-Images=handles.Images;
+Images=handles.Crop_OrigImages;
 %handles.bw2=[];
 %%
 toggler=retr('toggler');
 selected=floor(get(handles.fileselector, 'value'))-toggler*(1);
-a=Images(:,:,selected);handles.a=a;
+if length(size(Images)) == 4 %In the case of RGB pictures
+    a=Images(:,:,:,selected);handles.a=a;
+    gr = rgb2gray(a);
+    background = imopen(imcomplement(gr),strel('disk',str2double(get(handles.radius,'String'))));
+    bw = im2bw(imadjust(imcomplement(gr)- background),str2double(get(handles.threshold,'String')));
+    [~,L]=bwboundaries(bw(:,:,:,1),'noholes');
+else
+    a=Images(:,:,selected);handles.a=a;
+    background = imopen(imcomplement(a),strel('disk',str2double(get(handles.radius,'String'))));
+    bw = imadjust(imcomplement(a) - background);    
+    [~,L]=bwboundaries(bw(:,:,1),'noholes');
+end
 %gfr=imcomplement(a);
 %imshow(gfr,[],'InitialMagnification','fit')
-background = imopen(imcomplement(a),strel('disk',str2double(get(handles.radius,'String'))));
-bw = im2bw(imadjust(imcomplement(a)- background),str2double(get(handles.threshold,'String')));
-[~,L]=bwboundaries(bw(:,:,1),'noholes');
 stats=regionprops(L,'area','PixelIdxList');%Measure properties of image regions (e.g Area
 id=[stats.Area]>str2double(get(handles.P,'String'));
 stats_id=stats(id);
@@ -244,7 +265,7 @@ function Convert_all_Frames2binary_menu_Callback(hObject,~, handles)
 
 %Message= msgbox('Please wait','Processing images','help');
 %subIm=handles.subIm;
-Images=handles.Images;
+Images=handles.Crop_OrigImages;
 %Images3=false([size(subIm,1) size(subIm,2) handles.nFrames]);
 %handles.bw2=[];
 %handles.a=[];
@@ -277,12 +298,24 @@ for i=1:handles.nFrames
     %%
     %if sum(sum(handles.bw2(:,:,i)))==0
     %set(handles.text_Processing_frame,'string',['Processing frame ',num2str(i),' of ',num2str(handles.nFrames)])
-    %a=Images(:,:,i);
-    gfr=imcomplement(Images(:,:,i));
-    %imshow(gfr,[],'InitialMagnification','fit');
-    background = imopen(gfr,strel('disk',str2double(get(handles.radius,'String'))));
-    bw = im2bw(imadjust(gfr - background),str2double(get(handles.threshold,'String')));
-    [~,L]=bwboundaries(bw(:,:,1),'noholes');
+    if length(size(Images)) == 4 %In the case of RGB pictures
+        a=Images(:,:,:,i);handles.a=a;
+        gr = rgb2gray(a);
+        background = imopen(imcomplement(gr),strel('disk',str2double(get(handles.radius,'String'))));
+        bw = im2bw(imadjust(imcomplement(gr)- background),str2double(get(handles.threshold,'String')));
+        [~,L]=bwboundaries(bw(:,:,:,1),'noholes');
+    else
+        a=Images(:,:,i);handles.a=a;
+        bw = imcomplement(a);
+        [~,L]=bwboundaries(bw(:,:,1),'noholes');
+    end
+%     a=Images(:,:,i);
+%     bw = imcomplement(a);
+%     %gfr=imcomplement(Images(:,:,i));
+%     %imshow(gfr,[],'InitialMagnification','fit');
+%     %background = imopen(gfr,strel('disk',str2double(get(handles.radius,'String'))));
+%     %bw = im2bw(imadjust(gfr - background),str2double(get(handles.threshold,'String')));
+%     [~,L]=bwboundaries(bw(:,:,1),'noholes');
     stats=regionprops(L,'area','PixelIdxList');%Measure properties of image regions (e.g Area
     id=[stats.Area]>str2double(get(handles.P,'String'));
     stats_id=stats(id);
@@ -370,7 +403,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 end
 function Centroid_all_Callback(hObject, eventdata, handles)
-bw2=handles.bw2;Images=handles.Images;
+bw2=handles.bw2;Images=handles.Crop_OrigImages;
 % centroid.x=[];centroid.y=[];
 % centroid = repmat(centroid,handles.nFrames,1);
 %i=str2double(get(handles.Frame_No,'String'));
@@ -668,7 +701,11 @@ if (strcmp(get(handles.multip01, 'visible'), 'on')+0)+(strcmp(get(handles.multip
     currentimage=imread([filepath filename{selected}]);
 elseif strcmp(get(handles.multip02, 'visible'), 'on');
     Crop_OrigImages=handles.Crop_OrigImages;
-    currentimage=Crop_OrigImages(:,:,:,selected);
+    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
+        currentimage=Crop_OrigImages(:,:,:,selected);
+    else
+        currentimage=Crop_OrigImages(:,:,selected);
+    end
 elseif (strcmp(get(handles.multip03, 'visible'), 'on')+0)+(strcmp(get(handles.multip04, 'visible'), 'on')+0)>=1
     currentimage=handles.bw2(:,:,selected);
 elseif strcmp(get(handles.multip05, 'visible'), 'on')
@@ -676,7 +713,8 @@ elseif strcmp(get(handles.multip05, 'visible'), 'on')
         case 1 %'Binary image'
             currentimage=handles.bw2(:,:,selected);
         case 2 %'Cropped original image'
-            currentimage=handles.Crop_OrigImages(:,:,:,selected);
+            currentimage=handles.Crop_OrigImages(:,:,selected);
+            %:,
     end
     
 end
@@ -695,7 +733,8 @@ filepath=handles.filepath;
 filename=handles.filename;
 %%========================
 %image(currentimage, 'parent',gca,'cdatamapping', 'scaled');
-imshow(currentimage,[],'InitialMagnification','fit')
+imshow(currentimage,[],'InitialMagnification','fit')%RGB images 
+%imshow(currentimage)
 colormap('gray');
 vectorcolor='g';
 axis image;
@@ -765,8 +804,18 @@ end
 function Select_Region_of_interest_Callback(hObject, eventdata, handles)
 cla(handles.picture,'reset')
 set(handles.fileselector, 'value',1)
-    currentimage=handles.OrigImages(:,:,:,1);
-    plot_Image(handles,currentimage)
+%     currentimage=handles.OrigImages(:,:,1);
+%     %:,
+%     plot_Image(handles,currentimage)
+
+    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
+        currentimage=handles.OrigImages(:,:,:,1);
+        plot_Image(handles,currentimage)
+    else
+        currentimage=handles.OrigImages(:,:,1);
+        plot_Image(handles,currentimage)
+    end
+
 switchui('multip02')
 if strcmp(get(handles.tools, 'visible'), 'off');
     set(handles.tools,'visible','on')
