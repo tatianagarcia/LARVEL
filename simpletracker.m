@@ -344,7 +344,7 @@ function [ tracks adjacency_tracks A ] = simpletracker(points, varargin)
                 tmp = tmp - n_cells(frame_index);
                 frame_index = frame_index + 1;
             end
-            frame_index = frame_index - 1;
+            frame_index = frame_index - 1; %Track index TG
             in_frame_cell_index = tmp + n_cells(frame_index);
             
             track(frame_index) = in_frame_cell_index;

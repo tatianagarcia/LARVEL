@@ -22,7 +22,7 @@ function varargout = GUI_larvae_swim(varargin)
 
 % Edit the above text to modify the response to help GUI_larvae_swim
 
-% Last Modified by GUIDE v2.5 26-Feb-2016 15:48:24
+% Last Modified by GUIDE v2.5 25-Mar-2016 11:23:07
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -94,22 +94,15 @@ else
         I=imread(fullfile(filepath,filename{1}));
         OrigImages=zeros([size(I) nFrames],class(I));%prealocate memory
         %OrigImages(:,:,1)=rgb2gray(I);
-        if length(size(I)) == 3 %In the case of color picture
-            OrigImages(:,:,:,1)=(I);
-            % Create image sequence array
-            for p=2:nFrames
-                OrigImages(:,:,:,p)=(imread(fullfile(filepath,filename{p})));
-            end
-            close(m)
-        else
-            OrigImages(:,:,1)=(I); % In case of binary image
-            % Create image sequence array
-            for p=2:nFrames
-                OrigImages(:,:,p)=(imread(fullfile(filepath,filename{p})));
-            end
-            close(m)            
+        OrigImages(:,:,:,1)=(I);
+        % Create image sequence array
+        for p=2:nFrames
+            %OrigImages(:,:,p)=rgb2gray(imread(fullfile(filepath,filename{p})));
+            OrigImages(:,:,:,p)=(imread(fullfile(filepath,filename{p})));
         end
-        %
+        %save('OrigImages')
+        close(m)
+        
         % Display picture
         set(handles.picture,'Visible','on');
         handles.nFrames=length(filename);
@@ -148,7 +141,6 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
     set(hObject,'BackgroundColor','white');
 end
 end
-
 
 function Crop_button_Callback(hObject, eventdata, handles)
 %%
@@ -189,22 +181,16 @@ close(h)
 %% =======================================================================
 %crop all frames; display cropped footage
 for i=1:handles.nFrames
-    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
-        Crop_OrigImages(:,:,:,i)=imcrop(handles.OrigImages(:,:,:,i),roi);
-    else
-        Crop_OrigImages(:,:,i)=imcrop(handles.OrigImages(:,:,i),roi);
-    end
+    Crop_OrigImages(:,:,:,i)=imcrop(handles.OrigImages(:,:,:,i),roi);
+    Images(:,:,i)=rgb2gray(Crop_OrigImages(:,:,:,i));
 end
 clear done hLine pt x1 x2 xx y1 y2 yy %subIm
-%:, :,
-%Images(:,:,i)=rgb2gray(Crop_OrigImages(:,:,i));
-%:,
 %We Will use this at the end
 %CropImg=Images(:,:,1)+Images(:,:,2);
 %% Storage and preallocate data and structures
 handles.Crop_OrigImages=Crop_OrigImages;
-%handles.Images=Images;
-handles.bw2=zeros(size(Crop_OrigImages));
+handles.Images=Images;
+handles.bw2=zeros(size(Images));
 handles.subIm=subIm;
 centroid.x=[];centroid.y=[];centroid = repmat(centroid,handles.nFrames,1);
 handles.centroid=centroid;
@@ -212,7 +198,7 @@ handles.roi=roi;
 %%========================================================================
 %% display croped Images
 %imshow(Images(:,:,str2double(get(handles.Frame_No,'String'))),[],'InitialMagnification','fit')
-sliderdisp(handles)
+sliderdisp(hObject,eventdata,handles)
 %save('Images')
 %%========================================================================
 handles.status=2;%crop images images
@@ -220,29 +206,19 @@ guidata(hObject, handles);% Update handles structure
 hold off
 end
 
-%
-
 function Button_particle_segmentation_Callback(hObject, eventdata, handles)
 Message= msgbox('Please wait','Processing image','help');
-Images=handles.Crop_OrigImages;
+Images=handles.Images;
 %handles.bw2=[];
 %%
 toggler=retr('toggler');
 selected=floor(get(handles.fileselector, 'value'))-toggler*(1);
-if length(size(Images)) == 4 %In the case of RGB pictures
-    a=Images(:,:,:,selected);handles.a=a;
-    gr = rgb2gray(a);
-    background = imopen(imcomplement(gr),strel('disk',str2double(get(handles.radius,'String'))));
-    bw = im2bw(imadjust(imcomplement(gr)- background),str2double(get(handles.threshold,'String')));
-    [~,L]=bwboundaries(bw(:,:,:,1),'noholes');
-else
-    a=Images(:,:,selected);handles.a=a;
-    background = imopen(imcomplement(a),strel('disk',str2double(get(handles.radius,'String'))));
-    bw = imadjust(imcomplement(a) - background);    
-    [~,L]=bwboundaries(bw(:,:,1),'noholes');
-end
+a=Images(:,:,selected);handles.a=a;
 %gfr=imcomplement(a);
 %imshow(gfr,[],'InitialMagnification','fit')
+background = imopen(imcomplement(a),strel('disk',str2double(get(handles.radius,'String'))));
+bw = im2bw(imadjust(imcomplement(a)- background),str2double(get(handles.threshold,'String')));
+[~,L]=bwboundaries(bw(:,:,1),'noholes');
 stats=regionprops(L,'area','PixelIdxList');%Measure properties of image regions (e.g Area
 id=[stats.Area]>str2double(get(handles.P,'String'));
 stats_id=stats(id);
@@ -255,7 +231,7 @@ handles.bw2(:,:,selected)=bw2;
 set(handles.Identify_centroid_button,'Visible','on');
 guidata(hObject, handles);% Update handles structure
 delete(Message)
-sliderdisp(handles)
+sliderdisp(hObject,eventdata,handles)
 handles.status=3;%Preview image in binary
 guidata(hObject, handles);% Update handles structure
 end
@@ -265,7 +241,7 @@ function Convert_all_Frames2binary_menu_Callback(hObject,~, handles)
 
 %Message= msgbox('Please wait','Processing images','help');
 %subIm=handles.subIm;
-Images=handles.Crop_OrigImages;
+Images=handles.Images;
 %Images3=false([size(subIm,1) size(subIm,2) handles.nFrames]);
 %handles.bw2=[];
 %handles.a=[];
@@ -298,24 +274,12 @@ for i=1:handles.nFrames
     %%
     %if sum(sum(handles.bw2(:,:,i)))==0
     %set(handles.text_Processing_frame,'string',['Processing frame ',num2str(i),' of ',num2str(handles.nFrames)])
-    if length(size(Images)) == 4 %In the case of RGB pictures
-        a=Images(:,:,:,i);handles.a=a;
-        gr = rgb2gray(a);
-        background = imopen(imcomplement(gr),strel('disk',str2double(get(handles.radius,'String'))));
-        bw = im2bw(imadjust(imcomplement(gr)- background),str2double(get(handles.threshold,'String')));
-        [~,L]=bwboundaries(bw(:,:,:,1),'noholes');
-    else
-        a=Images(:,:,i);handles.a=a;
-        bw = imcomplement(a);
-        [~,L]=bwboundaries(bw(:,:,1),'noholes');
-    end
-%     a=Images(:,:,i);
-%     bw = imcomplement(a);
-%     %gfr=imcomplement(Images(:,:,i));
-%     %imshow(gfr,[],'InitialMagnification','fit');
-%     %background = imopen(gfr,strel('disk',str2double(get(handles.radius,'String'))));
-%     %bw = im2bw(imadjust(gfr - background),str2double(get(handles.threshold,'String')));
-%     [~,L]=bwboundaries(bw(:,:,1),'noholes');
+    %a=Images(:,:,i);
+    gfr=imcomplement(Images(:,:,i));
+    %imshow(gfr,[],'InitialMagnification','fit');
+    background = imopen(gfr,strel('disk',str2double(get(handles.radius,'String'))));
+    bw = im2bw(imadjust(gfr - background),str2double(get(handles.threshold,'String')));
+    [~,L]=bwboundaries(bw(:,:,1),'noholes');
     stats=regionprops(L,'area','PixelIdxList');%Measure properties of image regions (e.g Area
     id=[stats.Area]>str2double(get(handles.P,'String'));
     stats_id=stats(id);
@@ -403,7 +367,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 end
 function Centroid_all_Callback(hObject, eventdata, handles)
-bw2=handles.bw2;Images=handles.Crop_OrigImages;
+bw2=handles.bw2;Images=handles.Images;
 % centroid.x=[];centroid.y=[];
 % centroid = repmat(centroid,handles.nFrames,1);
 %i=str2double(get(handles.Frame_No,'String'));
@@ -431,42 +395,58 @@ guidata(hObject, handles);% Update handles structure
 hold off
 end
 
-
 % --- Executes on button press in Track_larvae_button.
 function Track_larvae_button_Callback(hObject, eventdata, handles)
 nFrames=handles.nFrames;
-%% ==================================================================================
-%% Storage data
-% Create points cell
-%
-cla reset
-max_linking_distance =str2double(get(handles.max_linking_distance,'string')) ;%1000;%343.7;
-max_gap_closing = str2double(get(handles.max_gap_closing,'string'));%Inf
-debug = true;
-points = cell(nFrames, 1);times=points;%allocate structures
-CM = hsv(nFrames);
-%%=== TIMES ===========================================================
-Frames_time=Detect_CameraDateTime(handles);
 
-for i=1:nFrames
-    points{i} = [(handles.centroid(i, 1).x) (handles.centroid(i, 1).y)];
-    times{i}=Frames_time(i)*ones(length(handles.centroid(i, 1).x),1);
+if strcmp(get(handles.multip06, 'visible'), 'on')
+    %% ==================================================================================
+    %% Storage data
+    % Create points cell
+    %
+    cla reset
+    max_linking_distance =str2double(get(handles.max_linking_distance,'string')) ;%1000;%343.7;
+    max_gap_closing = str2double(get(handles.max_gap_closing,'string'));%Inf
+    debug = true;
+    points = cell(nFrames, 1);times=points;%allocate structures
+    %%=== TIMES ===========================================================
+    Frames_time=Detect_CameraDateTime(handles);
+    %Put data in points and times structures
+    for i=1:nFrames
+        points{i} = [(handles.centroid(i, 1).x) (handles.centroid(i, 1).y)];
+        times{i}=Frames_time(i)*ones(length(handles.centroid(i, 1).x),1);
+    end
+    %
+    [ tracks adjacency_tracks ] = simpletracker(points,...
+        'MaxLinkingDistance', max_linking_distance, ...
+        'MaxGapClosing', max_gap_closing, ...
+        'Debug', debug,'Method','Hungarian');%'NearestNeighbor'
+end %If we are in the module to identify paths
+
+%% Acess data if not in tracking larvae path module
+if strcmp(get(handles.multip07, 'visible'), 'on')
+    points=handles.points;
+    tracks=handles.tracks;
+    adjacency_tracks=handles.adjacency_tracks;
+    times=handles.times;
 end
-%
-[ tracks adjacency_tracks ] = simpletracker(points,...
-    'MaxLinkingDistance', max_linking_distance, ...
-    'MaxGapClosing', max_gap_closing, ...
-    'Debug', debug,'Method','Hungarian');%'NearestNeighbor'
-
 %% Plot centroid of larvae location
-%figure('color','w');
+CM = hsv(nFrames); %colormap
 
+for j=1:nFrames
+    plot(points{j, 1}(:,1),points{j, 1}(:,end),'MarkerFaceColor',CM(j,:),'MarkerEdgeColor','k','Marker','o','LineStyle','none');
+    hold on
+    set(gca,'YDir','reverse')
+    legendInfo{j} = [handles.filename{j,1}];
+end
+h=legend(legendInfo);
+set(h,'interpreter','none')
 n_tracks = numel(tracks);
 colors =lines(n_tracks);
 all_points = vertcat(points{:});
 all_times=vertcat(times{:});
 larvae_tracks = cell(n_tracks, 1);
-for i_track = 1 : n_tracks
+for i_track = 1 : n_tracks  %n_tracks=number of paths
     
     % We use the adjacency tracks to retrieve the points coordinates. It
     % saves us a loop.
@@ -481,15 +461,13 @@ for i_track = 1 : n_tracks
     hold all
 end
 
-
-for j=1:nFrames
-    plot(points{j, 1}(:,1),points{j, 1}(:,end),'MarkerFaceColor',CM(j,:),'MarkerEdgeColor','k','Marker','o','LineStyle','none');
-    hold on
-    set(gca,'YDir','reverse')
+%Look for lines and send them to the back.
+lineObj=findobj(gca,'type','line');
+%uistack(lineObj, 'down',1)
+if strcmp(get(handles.multip06, 'visible'), 'on')
+    xlabel('X, in pixels')
+    ylabel('Y, in pixels')
 end
-
-xlabel('X, in pixels')
-ylabel('Y, in pixels')
 hold off
 handles.larvae_tracks=larvae_tracks;
 handles.time_consecutive_larvae=time_consecutive_larvae;
@@ -497,7 +475,7 @@ handles.points=points;
 handles.track_points=track_points;
 handles.tracks=tracks;
 handles.adjacency_tracks=adjacency_tracks;
-guidata(hObject, handles);% Update handles structure
+handles.times=times;
 handles.status=6;%Track larvae
 guidata(hObject, handles);% Update handles structure
 %% =======================================================================================
@@ -515,11 +493,126 @@ guidata(hObject, handles);% Update handles structure
         datevect(:,end)=datevect(:,end)+Milliseconds;
         seconds=(datevect(:,4)*3600)+(datevect(:,5)*60)+datevect(:,end);
     end%end function Detect_CameraDateTime
-
 end
 
 
-% --- Executes on button press in Select_reference_points_button.
+% --- Executes on button press in Manually_delete_path.
+function Manually_delete_path_Callback(hObject, eventdata, handles)
+set(handles.Text_messages,'string','Please click on the last larvae centroid of the path you want to delete.') 
+[X,Y]=ginput(1);
+minDist      = Inf;
+minHndlIdx   = 0;
+
+%% Acess data
+points=handles.points;
+tracks=handles.tracks;
+adjacency_tracks=handles.adjacency_tracks;
+all_points = vertcat(points{:});
+
+% identify larvae location in points structure
+
+%Use the X and Y data for each larvae at each frame (all points
+%structure)and determine which one is closest to the mouse down event
+xData =all_points(:,1);
+yData =all_points(:,2);
+dist  =((xData-X).^2+(yData-Y).^2);
+minHndlIdx=find(dist==min(dist),1);
+minDist = min(dist);
+
+% In which path is the larvae?
+n_tracks = numel(tracks);
+larvae_tracks = cell(n_tracks, 1);
+for i_track = 1 : n_tracks  %n_tracks=number of paths
+    if ~isempty(find(adjacency_tracks{i_track}==minHndlIdx))
+        Path_to_modify=i_track;
+        tracks{i_track}=[];
+        adjacency_tracks{i_track}=[];
+    end
+end
+adjacency_tracks(cellfun(@(adjacency_tracks) isempty(adjacency_tracks),adjacency_tracks))=[];
+tracks(cellfun(@(tracks) isempty(tracks),tracks))=[];
+% handles.larvae_tracks=larvae_tracks;
+% handles.time_consecutive_larvae=time_consecutive_larvae;
+% handles.points=points;
+% handles.track_points=track_points;
+handles.tracks=tracks;
+handles.adjacency_tracks=adjacency_tracks;
+% handles.times=times;
+guidata(hObject, handles);% Update handles structure
+Track_larvae_button_Callback(hObject, eventdata, handles)
+set(handles.Text_messages,'string',' ') 
+end
+
+
+% --- Executes on button press in add_larvae_path.
+function add_larvae_path_Callback(hObject, eventdata, handles)
+set(handles.Text_messages,'string','Please click on the centroid of each larvae you want to add to the path and right click in the centroid of the last larvae of the path.') 
+x= [];
+y = [];
+points=handles.points;
+all_points = vertcat(points{:});
+xData =all_points(:,1);
+yData =all_points(:,2);%lavae location
+frames=zeros(size(xData));
+% counter=1;
+% for i=1:length(points)  
+%     frames(counter:counter+size(points{i,1},1)-1)=repmat(i,1,size(points{i,1},1))
+%     counter=counter+size(points{i,1},1);
+% end
+% n_slices = numel(points);
+done=false;
+while ~done
+    [xi,yi,button] = ginput(1);
+    x = [x;xi];
+    y = [y;yi];
+    if button==3
+        done=true;  %exit
+        break
+    end 
+end
+Idtracks=zeros(1,length(x));
+for i=1:length(x)   
+dist  =((xData-x(i)).^2+(yData-y(i)).^2);
+Idtracks(i)=find(dist==min(dist),1);
+end
+%% Create a path
+adjacency_tracks=handles.adjacency_tracks;
+adjacency_tracks{end+1}=Idtracks;
+tracks=handles.tracks;
+
+n_cells = cellfun(@(x) size(x, 1), points); %number of points in each picture
+ track = NaN(numel(points), 1);
+ adjacency_track=adjacency_tracks{end};
+        
+        for j = 1 : numel(adjacency_track)
+            
+            cell_index = adjacency_track(j);%point number from adjacency number
+            
+            % We must determine the frame this index belong to
+            tmp = cell_index;
+            frame_index = 1;
+            while tmp > 0
+                tmp = tmp - n_cells(frame_index);
+                frame_index = frame_index + 1; %find picture where call_index point number is located based on n-cells array
+            end
+            frame_index = frame_index - 1; 
+            in_frame_cell_index = tmp + n_cells(frame_index); %number of points in corresponding picture
+            
+            track(frame_index) = in_frame_cell_index;
+            
+        end
+        
+        tracks{end+1} = track;
+        
+handles.tracks{end+1}=tracks;
+handles.adjacency_tracks=adjacency_tracks;
+guidata(hObject, handles);% Update handles structure
+Track_larvae_button_Callback(hObject, eventdata, handles)
+set(handles.Text_messages,'string',' ') 
+end
+
+
+% % --- Executes on button press in Select_reference_points_button.
 function Select_reference_points_button_Callback(hObject, eventdata, handles)
 %n=input('number of points to use in the calibration ');
 n_sq_x=str2double(get(handles.n_sq_x,'string'));%number of squares
@@ -578,14 +671,13 @@ guidata(hObject, handles);% Update handles structure
 hold off
 end
 
-
 % --------------------------------------------------------------------
 function Calculate_velocities_Callback(hObject, eventdata, handles)
 set(handles.tools,'visible','off')
 cla(handles.picture,'reset')
 set(handles.picture,'Visible','off');
-switchui('multip08')
-if handles.status<7
+switchui('multip09')
+if ~isfield(handles,'Pix_Cmx')
     errordlg('Please process the images and calibrate camera','Error');
     return
 end
@@ -594,79 +686,49 @@ Pix_Cmy=handles.Pix_Cmy;
 larvae_tracks=handles.larvae_tracks;
 time_consecutive_larvae=handles.time_consecutive_larvae';
 Larvae_velocity_x_and_y=cell(length(larvae_tracks),1);
+Distance_x_y=cell(length(larvae_tracks),1);
+time_span=cell(length(larvae_tracks),1);
 Larvae_velocity_Mag=Larvae_velocity_x_and_y;
 mean_vel_x_and_y=[];
-larvae_withPath=1;
+mean_Distance_x_y=[];
+mean_time_span=[];
+larvae_withPath=1; %For larvae that belong to a path
 for i=1:length(larvae_tracks)
     if size(larvae_tracks{i},1)>1
         Larvae_velocity_x_and_y{larvae_withPath}=[diff(larvae_tracks{i})./[(diff(time_consecutive_larvae{i}))*Pix_Cmx (diff(time_consecutive_larvae{i}))*Pix_Cmy]];
         Larvae_velocity_Mag{larvae_withPath}=sqrt(Larvae_velocity_x_and_y{larvae_withPath, 1}(:,1).^2)+(Larvae_velocity_x_and_y{larvae_withPath, 1}(:,end).^2);
-        
+        Distance_x_y{larvae_withPath}=diff(larvae_tracks{i})/Pix_Cmx;%in cm
+        time_span{larvae_withPath}=diff(time_consecutive_larvae{i});%seconds
         if size(Larvae_velocity_x_and_y{larvae_withPath},1)>1
             mean_vel_x_and_y(larvae_withPath,:)= mean(Larvae_velocity_x_and_y{larvae_withPath},1);
+            mean_Distance_x_y(larvae_withPath,:)= mean(Distance_x_y{larvae_withPath},1);
+            mean_time_span(larvae_withPath,:)= mean(time_span{larvae_withPath},1);
         else
             mean_vel_x_and_y(larvae_withPath,:)= Larvae_velocity_x_and_y{larvae_withPath};
+            mean_Distance_x_y(larvae_withPath,:)= Distance_x_y{larvae_withPath};
+            mean_time_span(larvae_withPath,:)= time_span{larvae_withPath};
         end
         larvae_withPath=larvae_withPath+1;
     end
 end%end for
 mean_Vel_mag=sqrt((mean_vel_x_and_y(:,1).^2)+(mean_vel_x_and_y(:,2).^2));
 handles.mean_Vel_mag=mean_Vel_mag;
-handles.Larvae_velocity_x_and_y=Larvae_velocity_x_and_y;
 handles.mean_vel_x_and_y=mean_vel_x_and_y;
+handles.mean_Distance_x_y=mean_Distance_x_y;
+handles.mean_time_span=mean_time_span;
+handles.Larvae_velocity_x_and_y=Larvae_velocity_x_and_y;
+handles.Distance_x_y=Distance_x_y;
+handles.time_span=time_span;
+
 handles.status=8;%Calibrated
 guidata(hObject, handles);% Update handles structure
+Message= msgbox('Done','Done','help');
+pause(0.8)
+if exist('Message', 'var')
+    delete(Message);
+    clear('Message');
+end
 end%end function
-
-
-function dt_multip05_Callback(hObject, eventdata, handles)
-end
-function dt_multip05_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-
-
-function Settings_Callback(hObject, eventdata, handles)
-
-end
-function Larvae_Tracking_Menu_Callback(hObject, eventdata, handles)
-
-end
-function Larvae_Identificat_Callback(hObject, eventdata, handles)
-% hObject    handle to Larvae_Identificat (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-end
-function filenamebox_Callback(hObject, eventdata, handles)
-% hObject    handle to filenamebox (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns filenamebox contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from filenamebox
-end
-function filenamebox_CreateFcn(hObject, eventdata, handles)
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-function loadimgbutton_Callback(hObject, eventdata, handles)
-%
-end
-function pushbutton12_Callback(hObject, eventdata, handles)
-
-end
-function edit9_Callback(hObject, eventdata, handles)
-end
-function edit9_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
 
 function sliderrange(handles)
 %filepath=handles.filepath;
@@ -684,10 +746,10 @@ end
 function fileselector_Callback(hObject, eventdata,handles)
 filename=handles.filename;
 if size(filename,1) > 1
-    sliderdisp(handles)
+    sliderdisp(hObject,eventdata,handles)
 end
 end
-function sliderdisp(handles)
+function sliderdisp(hObject,eventdata,handles)
 cla(handles.picture,'reset')
 filepath=handles.filepath;
 filename=handles.filename;
@@ -697,15 +759,11 @@ if selected==0 % If return to initial frame while toggle is activated, setup sel
     selected=1;
 end
 %% Image to display
-if (strcmp(get(handles.multip01, 'visible'), 'on')+0)+(strcmp(get(handles.multip07, 'visible'), 'on')+0)>=1;
+if (strcmp(get(handles.multip01, 'visible'), 'on')+0)+(strcmp(get(handles.multip08, 'visible'), 'on')+0)>=1;
     currentimage=imread([filepath filename{selected}]);
-elseif strcmp(get(handles.multip02, 'visible'), 'on');
+elseif (strcmp(get(handles.multip02, 'visible'), 'on')+0)+(strcmp(get(handles.multip07, 'visible'), 'on')+0)>=1;
     Crop_OrigImages=handles.Crop_OrigImages;
-    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
-        currentimage=Crop_OrigImages(:,:,:,selected);
-    else
-        currentimage=Crop_OrigImages(:,:,selected);
-    end
+    currentimage=Crop_OrigImages(:,:,:,selected);
 elseif (strcmp(get(handles.multip03, 'visible'), 'on')+0)+(strcmp(get(handles.multip04, 'visible'), 'on')+0)>=1
     currentimage=handles.bw2(:,:,selected);
 elseif strcmp(get(handles.multip05, 'visible'), 'on')
@@ -713,12 +771,27 @@ elseif strcmp(get(handles.multip05, 'visible'), 'on')
         case 1 %'Binary image'
             currentimage=handles.bw2(:,:,selected);
         case 2 %'Cropped original image'
-            currentimage=handles.Crop_OrigImages(:,:,selected);
-            %:,
+            currentimage=handles.Crop_OrigImages(:,:,:,selected);
     end
     
 end
 plot_Image(handles,currentimage)
+if strcmp(get(handles.multip05, 'visible'), 'on')
+    hold on;
+    centroid=handles.centroid;
+    plot(centroid(selected).x,centroid(selected).y,'ro')
+    hold off
+end
+if strcmp(get(handles.multip07, 'visible'), 'on')
+    hold on;
+    %% Acess data if not in tracking larvae path module
+    points=handles.points;
+    tracks=handles.tracks;
+    adjacency_tracks=handles.adjacency_tracks;
+    times=handles.times;
+    Track_larvae_button_Callback(hObject, eventdata, handles)
+    hold off
+end
 %hold on;
 %plot(handles.centroid(selected, 1).x,handles.centroid(selected, 1).y,'ro')
 %hold off
@@ -733,10 +806,9 @@ filepath=handles.filepath;
 filename=handles.filename;
 %%========================
 %image(currentimage, 'parent',gca,'cdatamapping', 'scaled');
-imshow(currentimage,[],'InitialMagnification','fit')%RGB images 
-%imshow(currentimage)
-colormap('gray');
-vectorcolor='g';
+imshow(currentimage,[],'InitialMagnification','fit')
+% colormap('gray');
+% vectorcolor='g';
 axis image;
 set(gca,'ytick',[])
 set(gca,'xtick',[])
@@ -759,8 +831,6 @@ function var = retr(name)
 hgui=getappdata(0,'hgui');
 var=getappdata(hgui, name);
 end
-
-
 function threshold_Callback(hObject, eventdata, handles)
 end
 function threshold_CreateFcn(hObject, eventdata, handles)
@@ -775,7 +845,7 @@ put ('toggler',toggler);
 filename=handles.filename;
 %filepath=retr('filepath');
 if size(filename,1) > 1
-    sliderdisp(handles)
+    sliderdisp(hObject,eventdata,handles)
 end
 end
 
@@ -804,18 +874,8 @@ end
 function Select_Region_of_interest_Callback(hObject, eventdata, handles)
 cla(handles.picture,'reset')
 set(handles.fileselector, 'value',1)
-%     currentimage=handles.OrigImages(:,:,1);
-%     %:,
-%     plot_Image(handles,currentimage)
-
-    if length(size(handles.OrigImages)) == 4 %In the case of RGB pictures
-        currentimage=handles.OrigImages(:,:,:,1);
-        plot_Image(handles,currentimage)
-    else
-        currentimage=handles.OrigImages(:,:,1);
-        plot_Image(handles,currentimage)
-    end
-
+currentimage=handles.OrigImages(:,:,:,1);
+plot_Image(handles,currentimage)
 switchui('multip02')
 if strcmp(get(handles.tools, 'visible'), 'off');
     set(handles.tools,'visible','on')
@@ -860,56 +920,36 @@ set(handles.tools,'visible','off')
 end
 
 % --------------------------------------------------------------------
+function Reject_path_Callback(hObject, eventdata, handles)
+switchui('multip07')
+set(handles.tools,'visible','on')
+toggler=retr('toggler');
+selected=floor(get(handles.fileselector, 'value'))-toggler*(1);
+if selected==0 % If return to initial frame while toggle is activated, setup selected to first frame
+    selected=1;
+end
+%% Image to display
+Crop_OrigImages=handles.Crop_OrigImages;
+currentimage=Crop_OrigImages(:,:,:,selected);
+plot_Image(handles,currentimage)
+%% Add on scatter of larvae centroids with larvae paths
+hold on
+Track_larvae_button_Callback(hObject, eventdata, handles)
+hold off
+%handles.status=7;%Manually delete larvae
+%guidata(hObject, handles);% Update handles structure
+end
+
+% --------------------------------------------------------------------
 function Calibration_menu_Callback(hObject, eventdata, handles)
 cla(handles.picture,'reset')
 set(handles.picture,'Visible','off');
-switchui('multip07')
+switchui('multip08')
 set(handles.fileselector, 'value',1)
 currentimage=handles.OrigImages(:,:,:,1);
 plot_Image(handles,currentimage)
 set(handles.tools,'visible','on')
 end
-
-
-
-
-function edit12_Callback(hObject, eventdata, handles)
-
-end
-
-% --- Executes during object creation, after setting all properties.
-function edit12_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-
-function edit13_Callback(hObject, eventdata, handles)
-
-end
-
-% --- Executes during object creation, after setting all properties.
-function edit13_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-
-function edit14_Callback(hObject, eventdata, handles)
-end
-
-function edit14_CreateFcn(hObject, eventdata, handles)
-
-if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
-    set(hObject,'BackgroundColor','white');
-end
-end
-
-
-
-
 
 % --- Executes on button press in Plot_all_button.
 function Plot_all_button_Callback(hObject, eventdata, handles)
@@ -931,15 +971,24 @@ switch get(handles.popupmenu_BackgroundImage,'value')
     case 1 %'Binary image'
         currentimages=handles.bw2;
     case 2 %'Cropped original image'
-        currentimages=handles.Crop_OrigImages;
+        currentimages=handles.Crop_OrigImages; %currentimage=handles.Crop_OrigImages(:,:,:,selected);
 end
 
 for i=1:handles.nFrames
+    cla(handles.picture,'reset')
     %h=figure;set(h,'color',[1 1 1],'position',[ 1 1 1920 1080]);
     %subplot(1,2,1);imshow(Images(:,:,i),[],'InitialMagnification','fit');
     %title(sprintf('Frame %d',i))
     set(handles.fileselector, 'value',i)
-    plot_Image(handles,currentimages(:,:,i))
+    %%
+    switch get(handles.popupmenu_BackgroundImage,'value')
+        case 1 %'Binary image'
+            currentimages=handles.bw2(:,:,i);
+        case 2 %'Cropped original image'
+            currentimages=handles.Crop_OrigImages(:,:,:,i); %currentimage=handles.Crop_OrigImages(:,:,:,selected);
+    end
+    %%
+    plot_Image(handles,currentimages)
     %title(sprintf('Frame %d',i))
     hold on;
     plot(centroid(i).x,centroid(i).y,'ro')
@@ -976,10 +1025,232 @@ plot(centroid(selected).x,centroid(selected).y,'ro')
 hold off
 
 if get(handles.popupmenu_BackgroundImage,'value')==2
-    set(handles.multip6a,'visible','on')
+    set(handles.multip5a,'visible','on')
+end
+if get(handles.popupmenu_BackgroundImage,'value')==2
+    set(handles.multip5b,'visible','on')
+end
+
 end
 
 
+% --------------------------------------------------------------------
+function Load_sesion_Callback(hObject, eventdata, handles)
+[Session_FileName,Session_PathName, filterindex] = uigetfile({'*.mat','MATLAB Files (*.mat)'; '*.mat','mat'},'Load LarvaeSwim session');
+ed=msgbox('Loading session, please wait','Loading','help');
+status=handles.status;
+cla(handles.picture,'reset');
+if exist('ed', 'var')
+    delete(ed);
+    clear('ed');
+end
+if isequal(Session_FileName,0) | isequal(Session_PathName,0)
+else
+    clear iptPointerManager
+    warning off all
+    vars=load(fullfile(Session_PathName,Session_FileName));
+    names=fieldnames(vars);
+    for i=1:size(names,1)
+        handles.(names{i})=vars.(names{i});
+    end
+    guidata(hObject, handles);% Update handles structure
+    sliderrange(handles)
+end
+
+if status==1
+    set(handles.fileselector, 'value',1)
+    if strcmp(get(handles.tools, 'visible'), 'off');
+        set(handles.tools,'visible','on')
+    end
+    currentimage=handles.OrigImages(:,:,:,1);
+    plot_Image(handles,currentimage)
+    %% settings
+    set(handles.folder_path,'string',handles.filepath);
+    set (handles.filenameshow, 'string', ['Frame (' int2str(1) '/' int2str(size(handles.filepath,1)/2) '):' sprintf('\n') handles.filename{1}]);
+    set (handles.filenameshow, 'tooltipstring', [handles.filepath handles.filename{1}]);
+    set(handles.imsize, 'string', ['Image size: ' int2str(size(currentimage,2)) '*' int2str(size(currentimage,1)) 'px' ])
+    set (handles.filenamebox, 'string', handles.filename);%displays picture names in popuplist
+    
+elseif status==2 %crop
+    set(handles.fileselector, 'value',1)
+    currentimage=handles.OrigImages(:,:,:,1);
+    plot_Image(handles,currentimage)
+    if strcmp(get(handles.tools, 'visible'), 'off');
+        set(handles.tools,'visible','on')
+    end
+elseif status==3 %Convert2binary
+    set(handles.fileselector, 'value',1)
+    currentimage=handles.bw2(:,:,:,1);
+    plot_Image(handles,currentimage)
+    if strcmp(get(handles.tools, 'visible'), 'off');
+        set(handles.tools,'visible','on')
+    end
+elseif status==4%Binary_all_Frames
+    set(handles.fileselector, 'value',1)
+    currentimage=handles.bw2(:,:,:,1);
+    plot_Image(handles,currentimage)
+    
+elseif status==5%Detect_Larvae_in_all_frames
+    set(handles.fileselector, 'value',1)
+    currentimage=handles.bw2(:,:,:,1);
+    plot_Image(handles,currentimage)
+    if strcmp(get(handles.tools, 'visible'), 'off');
+        set(handles.tools,'visible','on')
+    end
+    hold on;plot(handles.centroid(1, 1).x,handles.centroid(1, 1).y,'ro');hold off
+    if strcmp(get(handles.tools, 'visible'), 'off');
+        set(handles.tools,'visible','on')
+    end
+    hold off
+elseif status==6 %Track_Larvae_Paths
+    set(handles.tools,'visible','off')
+    n_tracks = numel(handles.tracks);
+    colors =lines(n_tracks);
+    for i_track = 1 : n_tracks
+        
+        % We use the adjacency tracks to retrieve the points coordinates. It
+        % saves us a loop.
+        all_points=vertcat(handles.points{:});
+        track = handles.adjacency_tracks{i_track};
+        track_points = all_points(track, :);
+        larvae_tracks{i_track}=[track_points(:,1)  track_points(:, 2)];
+        plot(track_points(:,1), track_points(:, 2), 'Color', colors(i_track, :),'linewidth',2)
+        hold all
+    end
+    time_consecutive_larvae=handles.time_consecutive_larvae;
+    
+    CM = hsv(handles.nFrames);
+    for j=1:handles.nFrames
+        plot(handles.points{j, 1}(:,1),handles.points{j, 1}(:,end),'MarkerFaceColor',CM(j,:),'MarkerEdgeColor','k','Marker','o','LineStyle','none');
+        hold on
+        set(gca,'YDir','reverse')
+    end
+    
+    xlabel('X, in pixels')
+    ylabel('Y, in pixels')
+    hold off
+elseif status==7%Calibration
+    set(handles.fileselector, 'value',1)
+    currentimage=handles.OrigImages(:,:,:,1);
+    plot_Image(handles,currentimage)
+    set(handles.tools,'visible','on')
+    set(handles.Pixel2cm_ratio_text,'string',['The pixel by cm ratio is equal to ' num2str(round((handles.Pix_Cmx)*10)/10) ' and '  num2str(round((handles.Pix_Cmy)*10)/10) ' in x and y, respectively.' ] )
+elseif status==8
+    set(handles.tools,'visible','off')
+end
+cla(handles.picture,'reset')
+set(handles.picture,'Visible','off');
+switchui(['multip0',num2str(status)])
+
+%     sliderdisp(hObject,eventdata,handles)
+
+
+
+end
+
+% --- Executes on button press in ExportResults_button.
+function ExportResults_button_Callback(hObject, eventdata, handles)
+mean_vel_x_and_y=handles.mean_vel_x_and_y;
+%mean_Vel_mag=sqrt((mean_vel_x_and_y(:,1).^2)+(mean_vel_x_and_y(:,2).^2));
+mean_Vel_mag=handles.mean_Vel_mag;
+mean_Distance_x_y=handles.mean_Distance_x_y;
+mean_time_span=handles.mean_time_span;
+%%
+Larvae_velocity_x_and_y=handles.Larvae_velocity_x_and_y;
+Distance_x_y=handles.Distance_x_y;
+time_span=handles.time_span;
+%% Mean results
+Mean_col_header={'Larvae_ID','Mean Vx (cm/s)','Mean Vy(cm/s)','Mean Velocity magnitude (cm/s)','Mean distance in x (cm)','Mean distance in y (cm)','Mean time span (seconds)'};%Row cell array (for column labels)
+larvaeId=(1:1:length(mean_Vel_mag))';
+Data=num2cell([larvaeId mean_vel_x_and_y mean_Vel_mag mean_Distance_x_y mean_time_span]);
+Mean_output_matrix=[Mean_col_header;Data];
+
+Larvae_velocity_x_and_y=handles.Larvae_velocity_x_and_y;
+Distance_x_y=handles.Distance_x_y;
+time_span=handles.time_span;
+%col_header={'Larvae_ID','Vx (cm/s)','Vy+(cm/s)','Vy+(cm/s)','Vel Mag(cm/s)'};
+col_header={'Larvae_ID','Vx (cm/s)','Vy(cm/s)','Distance in x (cm)','Distance in y (cm)','Average time span (seconds)'};%Row cell array (for column labels)
+larvaeId=[];
+for i=1:length(handles.Larvae_velocity_x_and_y)
+    larvaeId=[larvaeId;repmat(i,size(Larvae_velocity_x_and_y{i,1},1),1)];
+end
+Data=num2cell([larvaeId cell2mat(Larvae_velocity_x_and_y) cell2mat(Distance_x_y) cell2mat(time_span)]);
+output_matrix=[col_header; Data];     %Join cell arrays
+xlswrite([handles.filepath,'Results_Larvae_Swim.xls'],output_matrix,'Step_by_Step');     %Write data and both headers
+xlswrite([handles.filepath,'Results_Larvae_Swim.xls'],Mean_output_matrix,'Mean_movement_by_Larvae');     %Write data and both headers
+Message= msgbox('Done','Done','help');
+pause(0.8)
+if exist('Message', 'var')
+    delete(Message);
+    clear('Message');
+end
+end
+
+
+% --------------------------------------------------------------------
+function Save_ClickedCallback(hObject, eventdata, handles)
+% hObject    handle to Save (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+[FileName,PathName,filetype] = uiputfile({'*.tif';'*.jpg';'*.pdf';'*.eps';'*.fig'},'Save plot or image as');
+saveDataName = fullfile(PathName,FileName);
+fh = figure;
+copyobj(handles.picture, fh);
+%axes(handles.picture);
+saveas(fh, saveDataName); close(fh);
+end
+
+% --- Executes on button press in Delete_larvae_in_area.
+function Delete_larvae_in_area_Callback(hObject, eventdata, handles)
+%%==========
+toggler=retr('toggler');
+selected=floor(get(handles.fileselector, 'value'))-toggler*(1);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% First the user selects a region, larvae in this region will be deleted.
+done=false;
+while ~done
+    h = msgbox('Please select area containing larvae to be deleted');
+    [subIm,roi]=imcrop(handles.picture);
+    %wait for user to select region of interest (click-drag rubberband box)
+    %determine corners of selected region
+    x1=roi(1);  x2=roi(1)+roi(3);  xx=[x1 x1 x2 x2 x1];
+    y1=roi(2);  y2=roi(2)+roi(4);  yy=[y1 y2 y2 y1 y1];
+    %draw rectangle to indicate selected region
+    hLine=line(xx,yy);
+    title('Click inside to keep, outside to select again')
+    pt=ginput(1);
+    %wait for user to keep or discard selected region
+    % check: is point inside region?
+    if pt(1)>=roi(1) && pt(1)<=roi(1)+roi(3) && pt(2)>=roi(2) && pt(2)<=roi(2)+roi(4)
+        done=true;  %exit loop
+    else
+        delete(hLine)   %remove previous selection
+        title('Click-drag-release to select region of interest')
+        %loop around to select another region
+    end
+end
+title('The area was detected, larvae located in this area will be deleted');delete(h)
+%%
+centroid=handles.centroid(selected, 1);
+%%delete centroid handles for selected picture frame
+handles.centroid(selected, 1).x=[];
+handles.centroid(selected, 1).y=[];
+Particles_to_Remove=find(centroid.x>x1&centroid.x<x2&centroid.y>y1&centroid.y<y2);
+if ~isempty(Particles_to_Remove)
+    %Remove selected larvae
+    centroid.x(Particles_to_Remove)=[];
+    centroid.y(Particles_to_Remove)=[];
+    %Re-write handdles
+    handles.centroid(selected, 1).x=centroid.x;
+    handles.centroid(selected, 1).y=centroid.y;
+    guidata(hObject, handles);% Update handles structure
+    popupmenu_BackgroundImage_Callback(hObject, eventdata, handles) %Re-plot
+end
+
+end
+
+% --------------------------------------------------------------------
+function ValidatePaths_menu_Callback(hObject, eventdata, handles)
 end
 
 % --- Executes during object creation, after setting all properties.
@@ -1330,12 +1601,6 @@ end
 
 % --- Executes on selection change in popupmenu_plot_type.
 function popupmenu_plot_type_Callback(hObject, eventdata, handles)
-% hObject    handle to popupmenu_plot_type (see GCBO)
-% eventdata  reserved - to be defined in a future version of MATLAB
-% handles    structure with handles and user data (see GUIDATA)
-
-% Hints: contents = cellstr(get(hObject,'String')) returns popupmenu_plot_type contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from popupmenu_plot_type
 end
 
 % --- Executes during object creation, after setting all properties.
@@ -1470,141 +1735,144 @@ if exist('ed', 'var')
     clear('ed');
 end
 end
-
-
-% --------------------------------------------------------------------
-function Load_sesion_Callback(hObject, eventdata, handles)
-[Session_FileName,Session_PathName, filterindex] = uigetfile({'*.mat','MATLAB Files (*.mat)'; '*.mat','mat'},'Load LarvaeSwim session');
-ed=msgbox('Loading session, please wait','Loading','help');
-status=handles.status;
-cla(handles.picture,'reset');
-if exist('ed', 'var')
-    delete(ed);
-    clear('ed');
+function dt_multip05_Callback(hObject, eventdata, handles)
 end
-if isequal(Session_FileName,0) | isequal(Session_PathName,0)
-else
-    clear iptPointerManager
-    warning off all
-    vars=load(fullfile(Session_PathName,Session_FileName));
-    names=fieldnames(vars);
-    for i=1:size(names,1)
-        handles.(names{i})=vars.(names{i});
-    end
-    guidata(hObject, handles);% Update handles structure
-    sliderrange(handles)
+function dt_multip05_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
 end
-
-if status==1
-         set(handles.fileselector, 'value',1)
-      if strcmp(get(handles.tools, 'visible'), 'off');
-        set(handles.tools,'visible','on')
-    end
-    currentimage=handles.OrigImages(:,:,:,1);
-    plot_Image(handles,currentimage)
-    %% settings
-    set(handles.folder_path,'string',handles.filepath);
-    set (handles.filenameshow, 'string', ['Frame (' int2str(1) '/' int2str(size(handles.filepath,1)/2) '):' sprintf('\n') handles.filename{1}]);
-        set (handles.filenameshow, 'tooltipstring', [handles.filepath handles.filename{1}]);
-            set(handles.imsize, 'string', ['Image size: ' int2str(size(currentimage,2)) '*' int2str(size(currentimage,1)) 'px' ])
-    set (handles.filenamebox, 'string', handles.filename);%displays picture names in popuplist
-
-elseif status==2 %crop
-    set(handles.fileselector, 'value',1)
-    currentimage=handles.OrigImages(:,:,:,1);
-    plot_Image(handles,currentimage)
-    if strcmp(get(handles.tools, 'visible'), 'off');
-        set(handles.tools,'visible','on')
-    end
-elseif status==3 %Convert2binary
-    set(handles.fileselector, 'value',1)
-    currentimage=handles.bw2(:,:,:,1);
-    plot_Image(handles,currentimage)
-    if strcmp(get(handles.tools, 'visible'), 'off');
-        set(handles.tools,'visible','on')
-    end
-elseif status==4%Binary_all_Frames
-    set(handles.fileselector, 'value',1)
-    currentimage=handles.bw2(:,:,:,1);
-    plot_Image(handles,currentimage)
-   
-elseif status==5%Detect_Larvae_in_all_frames
-    set(handles.fileselector, 'value',1)
-    currentimage=handles.bw2(:,:,:,1);
-    plot_Image(handles,currentimage)
-    if strcmp(get(handles.tools, 'visible'), 'off');
-        set(handles.tools,'visible','on')
-    end
-     hold on;plot(handles.centroid(1, 1).x,handles.centroid(1, 1).y,'ro');hold off
-    if strcmp(get(handles.tools, 'visible'), 'off');
-        set(handles.tools,'visible','on')
-    end
-    hold off
-elseif status==6 %Track_Larvae_Paths
-    set(handles.tools,'visible','off')
-    n_tracks = numel(handles.tracks);
-    colors =lines(n_tracks);
-    for i_track = 1 : n_tracks
-        
-        % We use the adjacency tracks to retrieve the points coordinates. It
-        % saves us a loop.
-        all_points=vertcat(handles.points{:});
-        track = handles.adjacency_tracks{i_track};
-        track_points = all_points(track, :);
-        larvae_tracks{i_track}=[track_points(:,1)  track_points(:, 2)];
-        plot(track_points(:,1), track_points(:, 2), 'Color', colors(i_track, :),'linewidth',2)
-        hold all
-    end
-        time_consecutive_larvae=handles.time_consecutive_larvae;
-
-    CM = hsv(handles.nFrames);
-    for j=1:handles.nFrames
-        plot(handles.points{j, 1}(:,1),handles.points{j, 1}(:,end),'MarkerFaceColor',CM(j,:),'MarkerEdgeColor','k','Marker','o','LineStyle','none');
-        hold on
-        set(gca,'YDir','reverse')
-    end
-    
-    xlabel('X, in pixels')
-    ylabel('Y, in pixels')
-    hold off
-elseif status==7%Calibration
-    set(handles.fileselector, 'value',1)
-    currentimage=handles.OrigImages(:,:,:,1);
-    plot_Image(handles,currentimage)
-    set(handles.tools,'visible','on')
-    set(handles.Pixel2cm_ratio_text,'string',['The pixel by cm ratio is equal to ' num2str(round((handles.Pix_Cmx)*10)/10) ' and '  num2str(round((handles.Pix_Cmy)*10)/10) ' in x and y, respectively.' ] )
-elseif status==8
-        set(handles.tools,'visible','off')
-end
-cla(handles.picture,'reset')
-set(handles.picture,'Visible','off');
-switchui(['multip0',num2str(status)])
-
-%     sliderdisp(handles)
-
-
-
-end
-
-% --- Executes on button press in ExportResults_button.
-function ExportResults_button_Callback(hObject, eventdata, handles)
-Larvae_velocity_x_and_y=handles.Larvae_velocity_x_and_y;
-%col_header={'Larvae_ID','Vx (cm/s)','Vy+(cm/s)','Vy+(cm/s)','Vel Mag(cm/s)'};  
-col_header={'Larvae_ID','Vx (cm/s)','Vy(cm/s)'};%Row cell array (for column labels)	
-larvaeId=[];
-for i=1:length(handles.Larvae_velocity_x_and_y)
-    larvaeId=[larvaeId;repmat(i,size(Larvae_velocity_x_and_y{i,1},1),1)];
-end
-Data=num2cell([larvaeId cell2mat(Larvae_velocity_x_and_y)]);
-output_matrix=[col_header; Data];     %Join cell arrays
-xlswrite([handles.filepath,'Results_Larvae_Swim.xls'],output_matrix);     %Write data and both headers
 end
 
 
-% --------------------------------------------------------------------
-function Save_ClickedCallback(hObject, eventdata, handles)
-% hObject    handle to Save (see GCBO)
+function Settings_Callback(hObject, eventdata, handles)
+
+end
+function Larvae_Tracking_Menu_Callback(hObject, eventdata, handles)
+
+end
+function Larvae_Identificat_Callback(hObject, eventdata, handles)
+% hObject    handle to Larvae_Identificat (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
-a=1;
 end
+function filenamebox_Callback(hObject, eventdata, handles)
+% hObject    handle to filenamebox (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns filenamebox contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from filenamebox
+end
+function filenamebox_CreateFcn(hObject, eventdata, handles)
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+function loadimgbutton_Callback(hObject, eventdata, handles)
+%
+end
+function pushbutton12_Callback(hObject, eventdata, handles)
+
+end
+function edit9_Callback(hObject, eventdata, handles)
+end
+function edit9_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+function edit12_Callback(hObject, eventdata, handles)
+
+end
+
+% --- Executes during object creation, after setting all properties.
+function edit12_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+function edit13_Callback(hObject, eventdata, handles)
+
+end
+
+% --- Executes during object creation, after setting all properties.
+function edit13_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+function edit14_Callback(hObject, eventdata, handles)
+end
+
+function edit14_CreateFcn(hObject, eventdata, handles)
+
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+end
+
+%useful code for future
+
+% % maximum distance from line to the mouse pointer (arbitrary)
+%     DISTANCE_THRESHOLD = 2;
+%     % get the handles structure
+%     %handles = guidata(figHandle);
+% %     % get the position where the mouse button was pressed (not released)
+%     % within the GUI
+%     [x,y] = ginput(1)
+%     currentPoint = get(handles.picture, 'CurrentPoint');
+%     x            = currentPoint(1,1);
+%     y            = currentPoint(1,2);
+%     % get the position of the axes within the GUI
+%     axesPos = get(handles.axes1,'Position');
+%     minx    = axesPos(1);
+%     miny    = axesPos(2);
+%     maxx    = minx + axesPos(3);
+%     maxy    = miny + axesPos(4);
+%     % is the mouse down event within the axes?
+%     if x>=minx && x<=maxx && y>=miny && y<=maxy
+%         % do we have graphics objects?
+%         if isfield(handles,'plotHandles')
+%             % get the position of the mouse down event within the axes
+%             currentPoint = get(handles.axes1, 'CurrentPoint');
+%             x            = currentPoint(2,1);
+%             y            = currentPoint(2,2);
+%             % we are going to use the x and y data for each graphic object
+%             % and determine which one is closest to the mouse down event
+%             minDist      = Inf;
+%             minHndlIdx   = 0;
+%            for k=1:length(handles.plotHandles)
+%                xData = get(handles.plotHandles(k),'XData');
+%                yData = get(handles.plotHandles(k),'YData');
+%                dist  = min((xData-x).^2+(yData-y).^2);
+%                if dist<minDist && dist<DISTANCE_THRESHOLD
+%                    minHndlIdx = k;
+%                    minDist = dist;
+%                end
+%            end
+%            % if we have a graphics handle that is close to the mouse down
+%            % event/position, then save its index into the plotHandles array
+%            if minHndlIdx~=0
+%                handles.graphicToDeleteHandleIdx = minHndlIdx;
+%            else
+%                handles.graphicToDeleteHandleIdx = [];
+%            end
+%            % change the line style of the selected object
+%            for k=1:length(handles.plotHandles)
+%                if k==minHndlIdx
+%                    set(handles.plotHandles(k),'LineStyle',':');
+%                else
+%                    set(handles.plotHandles(k),'LineStyle','-');
+%                end
+%            end
+%            guidata(figHandle,handles);
+%         end
+%     end
+% end
